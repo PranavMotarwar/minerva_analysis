@@ -891,7 +891,7 @@ def logTransform(csvPath, skip_columns=[]):
             df[column] = np.log1p(df[column])
     df.to_csv(csvPath, index=False)
 
-# similar_neighborhood=False, embedding=False
+# similar_neighborhood=False, embedding=False <Updated by Pranav Motarwar - Lasso Fix>
 def get_cells_in_polygon(datasource_name, points):
     global config
     global datasource
@@ -902,22 +902,26 @@ def get_cells_in_polygon(datasource_name, points):
 
     point_tuples = [(e['imagePoints']['x'], e['imagePoints']['y']) for e in points]
     (x, y, r) = smallestenclosingcircle.make_circle(point_tuples)
-
     index = ball_tree.query_radius([[x, y]], r)
     neighbors = index[0]
-    circle_neighbors = datasource.iloc[neighbors].to_dict(orient='records')
-    neighbor_points = pd.DataFrame(circle_neighbors).values
+
+    circle_neighbors = datasource.iloc[neighbors]
+
+    x_col = config[datasource_name]['featureData'][0]['xCoordinate']
+    y_col = config[datasource_name]['featureData'][0]['yCoordinate']
 
     path = mpltPath.Path(point_tuples)
-    inside = path.contains_points(neighbor_points[:, [1, 2]].astype('float'))
-    neighbor_ids = neighbor_points[np.where(inside == True), 0].astype('int').flatten().tolist()
+    inside = path.contains_points(circle_neighbors[[x_col, y_col]].astype('float').values)
+
+    neighbor_ids = circle_neighbors.loc[inside, 'CellID'].astype(int).tolist()
     neighbor_ids.sort()
 
-    neighbor_ids_subtract = list(set(datasource['CellID']) - set(neighbor_ids))
+    all_ids = datasource['CellID'].tolist()
+    neighbor_ids_subtract = list(set(all_ids) - set(neighbor_ids))
     neighbor_ids_subtract.sort()
 
-    packet = {}
-    packet['list_ids'] = neighbor_ids
-    packet['list_ids_subtract'] = neighbor_ids_subtract
-
+    packet = {
+        'list_ids': neighbor_ids,
+        'list_ids_subtract': neighbor_ids_subtract
+    }
     return packet
