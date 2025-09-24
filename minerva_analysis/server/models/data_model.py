@@ -798,6 +798,7 @@ def generate_zarr_png(datasource_name, channel, level, tile):
         load_datasource(datasource_name)
     global channels
     global seg
+
     [tx, ty] = tile.replace('.png', '').split('_')
     tx = int(tx)
     ty = int(ty)
@@ -806,28 +807,52 @@ def generate_zarr_png(datasource_name, channel, level, tile):
     tile_height = config[datasource_name]['tileHeight']
     ix = tx * tile_width
     iy = ty * tile_height
+
     segmentation = False
     try:
         channel_num = int(re.match(r".*_(\d*)$", channel).groups()[0])
     except AttributeError:
         segmentation = True
+
     if segmentation:
         tile = seg[level][iy:iy + tile_height, ix:ix + tile_width]
+        if tile.size == 0:
+            return np.zeros((tile_height, tile_width, 3), dtype='uint8')
+
         if tile.dtype.itemsize != 4:
             tile = tile.astype(np.uint32)
-        tile = tile.view('uint8').reshape(tile.shape + (-1,))[..., [0, 1, 2]]
-        tile = np.append(tile, np.zeros((tile.shape[0], tile.shape[1], 1), dtype='uint8'), axis=2)
+
+        tile = tile.view('uint8').reshape(tile.shape + (-1,))
+        tile = tile[..., [0, 1, 2]]
+
+        if tile.shape[-1] == 1:
+            tile = np.repeat(tile, 3, axis=2)
+            
+        tile = np.append(
+            tile,
+            np.zeros((tile.shape[0], tile.shape[1], 1), dtype='uint8'),
+            axis=2
+        )
+
     else:
         if isinstance(channels, zarr.Array):
             tile = channels[channel_num, iy:iy + tile_height, ix:ix + tile_width]
         else:
             tile = channels[level][channel_num, iy:iy + tile_height, ix:ix + tile_width]
-            tile = tile.astype('uint16')
 
-    # tile = np.ascontiguousarray(tile, dtype='uint32')
-    # png = tile.view('uint8').reshape(tile.shape + (-1,))[..., [2, 1, 0]]
+        if tile.size == 0:
+            return np.zeros((tile_height, tile_width, 3), dtype='uint8')
+
+        tile = tile.astype('uint16')
+
+        if tile.ndim == 2:
+            tile = np.stack([tile] * 3, axis=-1)
+        elif tile.ndim == 3 and tile.shape[-1] == 1:
+            tile = np.repeat(tile, 3, axis=2)
+        elif tile.ndim == 4:
+            tile = tile[0]
+
     return tile
-
 
 def get_ome_metadata(datasource_name):
     if config is None:
