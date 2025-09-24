@@ -904,24 +904,23 @@ def get_cells_in_polygon(datasource_name, points):
     (x, y, r) = smallestenclosingcircle.make_circle(point_tuples)
     index = ball_tree.query_radius([[x, y]], r)
     neighbors = index[0]
-
     circle_neighbors = datasource.iloc[neighbors]
-
     x_col = config[datasource_name]['featureData'][0]['xCoordinate']
     y_col = config[datasource_name]['featureData'][0]['yCoordinate']
-
     path = mpltPath.Path(point_tuples)
-    inside = path.contains_points(circle_neighbors[[x_col, y_col]].astype('float').values)
+    inside = path.contains_points(
+        circle_neighbors[[x_col, y_col]].astype('float').values
+    )
+    idField = config[datasource_name]['featureData'][0].get('idField', "CellID")
 
-    neighbor_ids = circle_neighbors.loc[inside, 'CellID'].astype(int).tolist()
+    neighbor_ids = circle_neighbors.loc[inside, idField].astype(int).tolist()
     neighbor_ids.sort()
 
-    all_ids = datasource['CellID'].tolist()
+    all_ids = datasource[idField].tolist()
     neighbor_ids_subtract = list(set(all_ids) - set(neighbor_ids))
     neighbor_ids_subtract.sort()
 
-    packet = {
-        'list_ids': neighbor_ids,
-        'list_ids_subtract': neighbor_ids_subtract
+    return {
+        'ids': neighbor_ids,
+        'excluded_ids': neighbor_ids_subtract
     }
-    return packet
